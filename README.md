@@ -5,7 +5,11 @@
 
 XML ScreenSaver is an open source Windows Screensaver that is designed for dual monitor computers.
 
-It uses a simple XML file to specify the images that are displayed.
+You can create images that span across 2 monitors, they need to be split into left and right halves.
+
+XML ScreenSaver uses a simple XML file to specify the images that are displayed.
+
+After it is installed, you can easily update the configuration by modifying the image files or the XML file.
 
 
 ### Setup instructions
@@ -22,15 +26,19 @@ It uses a simple XML file to specify the images that are displayed.
     
 5.  Open a command prompt and determine the location of msbuild.exe:
 
+~~~~
      C:
      cd "\Program Files (x86)"
      dir msbuild.exe /s
+~~~~
 
 6.  In command prompt, change to the directory that has the file XMLScreenSaver.csproj
 
 7.  Run msbuild.exe to build the project. The exact location of msbuild.exe can vary. For example:
 
-     "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\MSBuild\Current\Bin\msbuild.exe" XMLScreenSaver.csproj
+~~~~
+     "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\MSBuild\Current\Bin\msbuild.exe" XMLScreenSaver.csproj
+~~~~
 
 8.  In Windows Explorer go to bin\Debug\ folder. Right click on XMLScreenSaver.scr and select Install.
     The Windows ScreenSaver dialog appears with XML ScreenSaver selected.
