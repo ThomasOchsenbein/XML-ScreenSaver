@@ -5,55 +5,51 @@
 
 XML ScreenSaver is an open source Windows Screensaver that is designed for dual monitor computers.
 
-You can create images that span across 2 monitors, they need to be split into left and right halves.
+XML ScreeSaver cycles through the images as specified by a simple XML file.
 
-XML ScreenSaver uses a simple XML file to specify the images that are displayed.
+You can create images that span across 2 monitors, by splitting the images into left and right halves.
 
 After it is installed, you can easily update the configuration by modifying the image files or the XML file.
 
 
 ### Setup instructions
 
-1.  Install a version of Visual Studio.
-    If you will never be doing any coding, search for "Build Tools for Visual Studio 2019" and install it.
-   
-2.  Download the repository (zip file).
+Please compile the application and create XMLScreenSaver.scr.  
+If you are familiar with Visual Studio, open the the solution and compile with Visual Studio.  
+Alternatively, please follow the build instructions below.
 
-3.  Downloaded zip files are usually flagged due to coming from internet zone.
+Right click on XMLScreenSaver.scr and select Install (will be bin\Debug\ folder).  
+The Windows ScreenSaver dialog will appear with XML ScreenSaver selected.  
+Click "Settings..." and download the sample XML file. Close the XML ScreenSaver settings window.  
+Modify the sample XML file so it references the image files you want displayed.  
+Set the environment variable XML_SCREENSAVER_CONFIG_FILENAME to the name of the XML file.  
+Close the Windows ScreenSaver dialog. Right click on XMLScreenSaver.scr a second time and select Install.  
+If the XML file is setup correctly, the left screen images will appear on the preview window.  
+Click OK and XML ScreenSaver will be installed as the default screen saver.
+
+
+##### Build XMLScreenSaver without Visual Studio IDE
+
+1.  Download the zip file.
+
+2.  Downloaded zip files are usually flagged due to coming from internet zone.
     Right click on the zip file -> Properties -> Unblock.
 
-4.  Unzip the zip file.
+3.  Unzip the zip file.
+
+4.  Download and install "Build Tools for Visual Studio 2019".
+
+    The installer will display screen with list of workloads to install.
+    Choose .NET desktop build tools.
+    Then on right side, select all options except "F# compiler".
     
-5.  Open a command prompt and determine the location of msbuild.exe:
-
-~~~~
-     C:
-     cd "\Program Files (x86)"
-     dir msbuild.exe /s
-~~~~
-
 6.  In command prompt, change to the directory that has the file XMLScreenSaver.csproj
 
-7.  Run msbuild.exe to build the project. The exact location of msbuild.exe can vary. For example:
+7.  Run msbuild.exe to build the project.
 
 ~~~~
-     "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\MSBuild\Current\Bin\msbuild.exe" XMLScreenSaver.csproj
+     "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\msbuild.exe" XMLScreenSaver.csproj
 ~~~~
-
-8.  In Windows Explorer go to bin\Debug\ folder. Right click on XMLScreenSaver.scr and select Install.
-    The Windows ScreenSaver dialog appears with XML ScreenSaver selected.
-
-10. Click "Settings..." and download the sample XML file. Close the XML ScreenSaver settings window.
-
-11. Modify the sample XML file so it references the image files you want displayed.
-
-12. Set the environment variable XML_SCREENSAVER_CONFIG_FILENAME to the name of the XML file.
-
-13. Close the Windows ScreenSaver dialog. Right click on XMLScreenSaver.scr a second time and select Install.
-
-14. If the XML file is setup correctly, the left screen images will appear on the preview window.
-
-15. Click OK and it will be installed as the default screen saver.
 
 
 ### Version History
@@ -68,4 +64,3 @@ After it is installed, you can easily update the configuration by modifying the 
 This software is licensed under GPL Version 3.0 - https://www.gnu.org/licenses/gpl-3.0.txt
 
 Copyright © 2020 Thomas Ochsenbein.
-
