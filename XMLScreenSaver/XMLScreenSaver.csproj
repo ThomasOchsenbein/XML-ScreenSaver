@@ -33,7 +33,7 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <PropertyGroup>
-    <Win32Resource>C:\Users\thoma\source\repos\XMLScreenSaver\XMLScreenSaver\XMLScreenSaver.rct</Win32Resource>
+    <Win32Resource>.\XMLScreenSaver.rct</Win32Resource>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
