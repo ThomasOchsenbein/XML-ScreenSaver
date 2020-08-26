@@ -5,7 +5,7 @@
 
 XML ScreenSaver is an open source Windows Screensaver that is designed for dual monitor computers.
 
-XML ScreeSaver cycles through the images as specified by a simple XML file.
+XML ScreenSaver cycles through the images as specified by a simple XML file.
 
 You can create images that span across 2 monitors, by splitting the images into left and right halves.
 
