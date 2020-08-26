@@ -14,8 +14,8 @@ After it is installed, you can easily update the configuration by modifying the 
 
 ### Setup instructions
 
-Please compile the application and create XMLScreenSaver.scr.
-Visual Studio is the preferred method for compiling the application.
+Please compile the application and create XMLScreenSaver.scr.  
+Visual Studio is the preferred method for compiling the application.  
 If you don’t have Visual Studio, please follow the build instructions below.
 
 Right click on XMLScreenSaver.scr and select Install (will be bin\Debug\ folder).  
