@@ -14,9 +14,9 @@ After it is installed, you can easily update the configuration by modifying the 
 
 ### Setup instructions
 
-Please compile the application and create XMLScreenSaver.scr.  
-If you are familiar with Visual Studio, open the the solution and compile with Visual Studio.  
-Alternatively, please follow the build instructions below.
+Please compile the application and create XMLScreenSaver.scr.
+Visual Studio is the preferred method for compiling the application.
+If you don’t have Visual Studio, please follow the build instructions below.
 
 Right click on XMLScreenSaver.scr and select Install (will be bin\Debug\ folder).  
 The Windows ScreenSaver dialog will appear with XML ScreenSaver selected.  
@@ -28,7 +28,7 @@ If the XML file is setup correctly, the left screen images will appear on the pr
 Click OK and XML ScreenSaver will be installed as the default screen saver.
 
 
-##### Build XMLScreenSaver without Visual Studio IDE
+##### Build XML ScreenSaver without Visual Studio IDE
 
 1.  Download the zip file.
 
