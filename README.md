@@ -54,9 +54,10 @@ Click OK and XML ScreenSaver will be installed as the default screen saver.
 
 ### Version History
 
-| Date       | Version   | Description                                          |
-|------------|-----------|------------------------------------------------------|
-| 2020-08-02 | 1.0.0.0   | First public release.                                |
+| Date       | Version   | Description                                                                  |
+|------------|-----------|------------------------------------------------------------------------------|
+| 2020-08-30 | 1.1.0.0   | 3+ Monitors Config: Add support for grouping monitors by the model name.     |
+| 2020-08-02 | 1.0.0.0   | First public release.                                                        |
 
 
 ### License
