@@ -7,7 +7,7 @@
     <ProjectGuid>{3C869677-A3CC-48C8-BA3E-C10239985580}</ProjectGuid>
     <OutputType>WinExe</OutputType>
     <RootNamespace>XMLScreenSaver</RootNamespace>
-    <AssemblyName>XMLScreenSaver</AssemblyName>
+    <AssemblyName>XML ScreenSaver</AssemblyName>
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>

@@ -73,15 +73,21 @@ namespace XMLScreenSaver
         /// </summary>
         public static string xsdConfigFileSchema =
 @"<xs:schema attributeFormDefault='unqualified' elementFormDefault='qualified' xmlns:xs='http://www.w3.org/2001/XMLSchema'>
-  <xs:simpleType name='screenSaverDelay'>
+  <xs:simpleType name='screenSaverDelayType'>
     <xs:restriction base='xs:integer'>
       <xs:minInclusive value='6'/>
       <xs:maxInclusive value='60'/>
     </xs:restriction> 
   </xs:simpleType>
-  <xs:simpleType name='htmlColor'>
+  <xs:simpleType name='htmlColorType'>
     <xs:restriction base='xs:token'>
       <xs:pattern value='#[\dA-Fa-f]{6}'/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name='multiDetectionType'>
+    <xs:restriction base='xs:string'>
+      <xs:enumeration value='MonitorModel'/>
+      <xs:enumeration value='GraphicsAdapter'/>
     </xs:restriction>
   </xs:simpleType>
   <xs:element name='XMLScreenSaver'>
@@ -90,8 +96,9 @@ namespace XMLScreenSaver
         <xs:element name='settings'>
           <xs:complexType>
             <xs:sequence>
-              <xs:element type='screenSaverDelay' name='displayTimeSeconds'/>
-              <xs:element type='htmlColor' name='backgroundColor' minOccurs='0'/>
+              <xs:element type='screenSaverDelayType' name='displayTimeSeconds'/>
+              <xs:element type='htmlColorType' name='backgroundColor' minOccurs='0'/>
+              <xs:element type='multiDetectionType' name='multiDetectionMethod' minOccurs='0'/>
             </xs:sequence>
           </xs:complexType>
         </xs:element>
@@ -129,13 +136,22 @@ Set environment variable " + environmentVariableName + @" to the name of this fi
 -->
 <XMLScreenSaver>
     <settings>
-        <!-- displayTimeSeconds must be between 6 and 60. -->
+        <!-- displayTimeSeconds is required. It must be between 6 and 60. -->
         <displayTimeSeconds>10</displayTimeSeconds>
-        <!-- backgroundColor is optional. It defaults to #000000. -->
-        <backgroundColor>#6ECCA0</backgroundColor>
+        <!-- backgroundColor is optional. If not specified it defaults to #000000. -->
+        <backgroundColor>#221122</backgroundColor>
+        <!--
+          multiDetectionMethod
+          When there are more than 2 monitors, there is no simple method to always determine which
+          2 monitors are left/right pairs.
+          XML ScreenSaver has 2 methods to detect left/right monitors:
+          - MonitorModel      Monitors that are same type are grouped together
+          - GraphicsAdapter   Monitors connected to same graphics card in computer are grouped together
+          This is optional. If not specified it defaults to MonitorModel.
+        -->
+        <multiDetectionMethod>MonitorModel</multiDetectionMethod>
     </settings>
-    <!-- XMLScreenSaver requires a minimum of 2 frames and has a maximum of 60. -->
-    <!-- It is possible to reuse the same image file multiple times. -->
+    <!-- XML ScreenSaver requires a minimum of 2 frames and has a maximum of 60. -->
     <frames>
         <frame index='1' leftImage='C:\XMLScreenSaver\left_1.png' rightImage='C:\XMLScreenSaver\right_1.png'/>
         <frame index='2' leftImage='C:\XMLScreenSaver\left_2.png' rightImage='C:\XMLScreenSaver\right_2.png'/>
@@ -224,7 +240,7 @@ Set environment variable " + environmentVariableName + @" to the name of this fi
                     win32MonitorList = Win32.MonitorInformation.EnumerateMonitors();
 
                     // Determine which screens are on the right hand side.
-                    rightScreenXList = GetRightSideScreens(win32MonitorList);
+                    rightScreenXList = GetRightSideScreens(win32MonitorList, xmlConfig);
 
                     // Launch screen saver.
                     Application.Run(new ScreenSaverForm(xmlConfig, win32MonitorList, rightScreenXList));
@@ -283,11 +299,12 @@ Set environment variable " + environmentVariableName + @" to the name of this fi
         /// Attempts to determine which screens are located on right hand side of another screen.
         /// Returns list of X coordinates for monitors that are on right hand side.
         /// </summary>
-        static List<int> GetRightSideScreens(List<Win32.MonitorInformation> win32Monitors)
+        static List<int> GetRightSideScreens(List<Win32.MonitorInformation> win32Monitors, XDocument xmlConfig)
         {
 
             List<int> xList = new List<int>();
-            Dictionary<string, int> adapterNames = new Dictionary<string, int>();
+            Dictionary<string, int> groupNames = new Dictionary<string, int>();
+            string detectionType = "";
 
             if (win32Monitors.Count == 1)
             {
@@ -303,28 +320,44 @@ Set environment variable " + environmentVariableName + @" to the name of this fi
                 return xList;
             }
 
-            // If there are more than 2 monitors, have to try and find pairs based on
-            // what graphics adapter they are connected to.
-
-            // Create list of unique adapter names.
-            foreach (Win32.MonitorInformation mon in win32Monitors)
+            // If there are more than 2 monitors, have to try and find pairs.
+            // There are 2 methods:
+            // - monitor model name
+            // - graphics adapter they are connected 
+            if (xmlConfig != null )
             {
-                string name = StringExtension.TrimIfFound(mon.AdapterRegKey, "\\");
-                if (adapterNames.ContainsKey(name)) adapterNames[name] += 1;
-                else adapterNames.Add(name, 1);
+                XElement detectionTypeElement =
+                    xmlConfig.Root.Element("settings").Element("multiDetectionMethod");
+                if (detectionTypeElement != null)
+                    detectionType = detectionTypeElement.Value;
             }
 
-            //If an adapter has multiple screens, select the right most screen.
-            foreach (string adapter in adapterNames.Keys)
+            // Create list of group names.
+            foreach (Win32.MonitorInformation mon in win32Monitors)
             {
-                if (adapterNames[adapter] > 1)
+                string name;
+
+                if (detectionType == "GraphicsAdapter") name = StringExtension.TrimIfFound(mon.AdapterRegKey, "\\");
+                else name = mon.DeviceModelName;
+
+                if (groupNames.ContainsKey(name)) groupNames[name] += 1;
+                else groupNames.Add(name, 1);
+            }
+
+            //For each group, if there is more than 1 screen, select the right most screen.
+            foreach (string groupItem in groupNames.Keys)
+            {
+                if (groupNames[groupItem] > 1)
                 {
                     int rightScreenX = -(1 << 30);
                     foreach (Win32.MonitorInformation mon in win32Monitors)
                     {
-                        string name = StringExtension.TrimIfFound(mon.AdapterRegKey, "\\");
-                        if (adapter == name && mon.Bounds.X > rightScreenX)
-                            rightScreenX = mon.Bounds.X;
+                        string name;
+
+                        if (detectionType == "GraphicsAdapter") name = StringExtension.TrimIfFound(mon.AdapterRegKey, "\\");
+                        else name = mon.DeviceModelName;
+
+                        if (groupItem == name && mon.Bounds.X > rightScreenX) rightScreenX = mon.Bounds.X;
                     }
                     xList.Add(rightScreenX);
                 }

@@ -118,7 +118,7 @@ namespace XMLScreenSaver
             tmpMonitorList.Add
                 (
                 new Win32.MonitorInformation
-                    ("Preview", "Preview", "", "Preview", "Preview", "", "", monBounds, 0, 0, true, false)
+                    ("Preview", "Preview", "", "Preview", "Preview", "", "", monBounds, 0, 0, null, true, false)
                 );
             List<int> tmpXList = new List<int>();
 

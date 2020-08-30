@@ -38,13 +38,10 @@
  * - graphics adapter unique identifier
  * - graphics adapter model name (e.g. Nvidia TNT2)
  *  
- * If the standard WinForms Screen object provided graphics adapter unique id, it would be easy to
- * determine which screens are "paired".
- * 
- * Implemented Win32 API library call to get more detailed information about the displays.
+ * Implemented Win32 API library calls to get more detailed information about the displays.
  * EnumDisplayDevices returns an Adapter RegKey value.
  * This is value is not the same for all screens connected to same adapter, so have to implement
- * clumsy code to try and do the matching.
+ * clumsy code to try and do matching on Adapter.
  * 
  */
 using System;
@@ -73,20 +70,82 @@ namespace Win32
         public Rectangle Bounds { get; }
         public int BitsPerPixel { get; }
         public int DisplayFrequency { get; }
+        public byte[] EdidData { get; }     // Can be null.
+        public string EdidDataString
+        {
+            get
+            {
+                if (EdidData == null) return "";
+                return BitConverter.ToString(EdidData);
+            }
+        }
+        public string DeviceModelName
+        {
+            get
+            {
+                if (EdidData == null) return "";
+
+                const int EDID_DISPLAY_PRODUCT_NAME = 0xFC;
+
+                int descriptorStringOffset = 0;
+                string retValue = "";
+
+                // Locate the display model name descriptor and extract the string.
+                List<int> edidDescriptorOffsets = new List<int> { 0x48, 0x5a, 0x6c };
+                foreach (int offset in edidDescriptorOffsets)
+                {
+                    if (
+                       EdidData[offset]   == 0x00 &&
+                       EdidData[offset+1] == 0x00 &&
+                       EdidData[offset+2] == 0x00 && 
+                       EdidData[offset+3] == EDID_DISPLAY_PRODUCT_NAME
+                       )
+                    {
+                        descriptorStringOffset = offset + 5;
+                    }
+                }
+
+                if (descriptorStringOffset > 0)
+                {
+                    retValue = System.Text.Encoding.ASCII.GetString(EdidData, descriptorStringOffset, 13);
+                    if (retValue.IndexOf('\n') >= 0) retValue = retValue.Substring(0, retValue.IndexOf('\n'));
+                }
+
+                return retValue;
+            }
+        }
+        public int WidthMM
+        {
+            get
+            {
+                if (EdidData == null) return 0;
+                return ((EdidData[68] & 0xF0) << 4) + EdidData[66];
+            }
+        }
+        public int HeightMM
+        {
+            get
+            {
+                if (EdidData == null) return 0;
+                return ((EdidData[68] & 0x0F) << 8) + EdidData[67];
+            }
+        }
         public bool IsPrimary { get; }
         public bool IsDisabled { get; }
+
 
         public MonitorInformation
             (
             string adapterName, string adapterType, string adapterRegKey,
             string deviceName, string deviceType, string deviceRegKey, string deviceId,
-            Rectangle bounds, int bitsPerPixel, int displayFrequency, bool isPrimary, bool isDisabled
+            Rectangle bounds, int bitsPerPixel, int displayFrequency, byte[] edidData,
+            bool isPrimary, bool isDisabled
             )
         {
             AdapterName = adapterName; AdapterType = adapterType; AdapterRegKey = adapterRegKey;
             DeviceName = deviceName; DeviceType = deviceType; DeviceRegKey = deviceRegKey; DeviceId = deviceId;
             Bounds = bounds; BitsPerPixel = bitsPerPixel; DisplayFrequency = displayFrequency;
-            IsPrimary = isPrimary; IsDisabled = isDisabled;
+            EdidData = edidData; IsPrimary = isPrimary; IsDisabled = isDisabled;
         }
 
 
@@ -101,6 +160,16 @@ namespace Win32
 
         const uint ENUM_CURRENT_SETTINGS = 0xFFFFFFFF;
         const uint ENUM_REGISTRY_SETTINGS = 0xFFFFFFFE;
+
+        const int ERROR_SUCCESS = 0;
+        const int ERROR_NO_MORE_ITEMS = 259;
+        const Int64 INVALID_HANDLE_VALUE = -1;
+        const int BUFFER_SIZE = 500;
+        const int DIGCF_PRESENT = 0x00000002;
+        const int DIGCF_DEVICEINTERFACE = 0x00000010;
+        const int DICS_FLAG_GLOBAL = 0x00000001;
+        const int DIREG_DEV = 0x00000001;
+        const int KEY_READ = 0x20019;
 
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
@@ -162,6 +231,32 @@ namespace Win32
             public int dmPanningHeight;
         }
 
+        [StructLayout(LayoutKind.Sequential)]
+        struct SP_DEVICE_INTERFACE_DATA
+        {
+            public UInt32 cbSize;
+            public Guid interfaceClassGuid;
+            public Int32 flags;
+            private UIntPtr reserved;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct SP_DEVINFO_DATA
+        {
+            public UInt32 cbSize;
+            public Guid ClassGuid;
+            public UInt32 DevInst;
+            public IntPtr Reserved;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+        struct SP_DEVICE_INTERFACE_DETAIL_DATA
+        {
+            public int cbSize;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = BUFFER_SIZE)]
+            public string DevicePath;
+        }
+
 
         [DllImport("user32.dll")]
         static extern bool EnumDisplayDevices
@@ -170,6 +265,58 @@ namespace Win32
         [DllImport("user32.dll")]
         static extern bool EnumDisplaySettingsEx
             (string lpszDeviceName, uint iModeNum, ref DEVMODE lpDevMode, uint dwFlags);
+
+        [DllImport("setupapi.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        // 1st form using a ClassGUID only, with null Enumerator.
+        static extern IntPtr SetupDiGetClassDevs(ref Guid ClassGuid, IntPtr Enumerator, IntPtr hwndParent, uint Flags);
+
+        [DllImport("setupapi.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        static extern Boolean SetupDiEnumDeviceInterfaces
+            (
+            IntPtr hDevInfo, IntPtr devInfo, ref Guid interfaceClassGuid, UInt32 memberIndex,
+            ref SP_DEVICE_INTERFACE_DATA deviceInterfaceData
+            );
+
+        [DllImport("setupapi.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        static extern Boolean SetupDiGetDeviceInterfaceDetail
+            (
+            IntPtr hDevInfo,
+            ref SP_DEVICE_INTERFACE_DATA deviceInterfaceData,
+            ref SP_DEVICE_INTERFACE_DETAIL_DATA deviceInterfaceDetailData,
+            UInt32 deviceInterfaceDetailDataSize,
+            ref UInt32 requiredSize,
+            ref SP_DEVINFO_DATA deviceInfoData
+            );
+
+        [DllImport("setupapi.dll", SetLastError = true)]
+        static extern bool SetupDiDestroyDeviceInfoList(IntPtr DeviceInfoSet);
+
+        [DllImport("Setupapi", CharSet = CharSet.Auto, SetLastError = true)]
+        static extern UIntPtr SetupDiOpenDevRegKey
+            (
+            IntPtr hDeviceInfoSet,
+            ref SP_DEVINFO_DATA deviceInfoData,
+            int scope,
+            int hwProfile,
+            int parameterRegistryValueKind,
+            int samDesired
+            );
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        static extern int RegCloseKey(UIntPtr hKey);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        static extern uint RegEnumValue
+            (
+            UIntPtr hKey,
+            uint dwIndex,
+            StringBuilder lpValueName,
+            ref uint lpcValueName,
+            IntPtr lpReserved,
+            IntPtr lpType,
+            IntPtr lpData,
+            ref int lpcbData
+            );
 
 
         #endregion
@@ -183,6 +330,8 @@ namespace Win32
 
             List<MonitorInformation> newList = new List<MonitorInformation>();
 
+            Dictionary<string, byte[]> allEdids = GetAllEdids();
+
             DISPLAY_DEVICE display = new DISPLAY_DEVICE();
             display.cb = Marshal.SizeOf(display);
 
@@ -194,11 +343,11 @@ namespace Win32
                 DISPLAY_DEVICE monitor = new DISPLAY_DEVICE();
                 monitor.cb = Marshal.SizeOf(monitor);
 
-                // ignore virtual mirror displays
+                // Ignore virtual mirror displays.
                 if ((display.StateFlags & DISPLAY_DEVICE_MIRRORING_DRIVER) == 0)
                 {
 
-                    // get info about the monitor attached to the display device
+                    // Get info about the monitor attached to the display device.
                     uint monIdx = 0;
                     while (EnumDisplayDevices(display.DeviceName, monIdx, ref monitor, EDD_GET_DEVICE_INTERFACE_NAME))
                     {
@@ -208,7 +357,7 @@ namespace Win32
 
                     if (monitor.DeviceString == "") monitor.DeviceString = "Default Monitor";
 
-                    // get information about the display's position and the current display mode
+                    // Get information about the display's position and the current display mode.
                     DEVMODE monitorSettings = new DEVMODE();
                     monitorSettings.dmSize = (short)Marshal.SizeOf(monitorSettings);
 
@@ -217,12 +366,15 @@ namespace Win32
                         EnumDisplaySettingsEx(display.DeviceName, ENUM_REGISTRY_SETTINGS, ref monitorSettings, 0);
                     }
 
-                    // all info retrieved - add this monitor to the list
+                    // All info retrieved - add this monitor to the list.
                     Rectangle tmpBounds = new Rectangle();
                     tmpBounds.X = monitorSettings.dmPositionX;
                     tmpBounds.Y = monitorSettings.dmPositionY;
                     tmpBounds.Width = monitorSettings.dmPelsWidth;
                     tmpBounds.Height = monitorSettings.dmPelsHeight;
+
+                    Byte[] tmpEdid = null;
+                    if (allEdids.ContainsKey(monitor.DeviceID.ToLower())) tmpEdid = allEdids[monitor.DeviceID.ToLower()];
 
                     if (((display.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) != 0) || includeDisabledMonitors == true)
                     {
@@ -231,6 +383,7 @@ namespace Win32
                                 display.DeviceName, display.DeviceString, display.DeviceKey,
                                 monitor.DeviceName, monitor.DeviceString, monitor.DeviceKey, monitor.DeviceID,
                                 tmpBounds, monitorSettings.dmBitsPerPel, monitorSettings.dmDisplayFrequency,
+                                tmpEdid,
                                 ((display.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE) != 0),
                                 ((display.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) == 0)
                                 )
@@ -239,7 +392,7 @@ namespace Win32
 
                 }
 
-                //move to next device
+                // Move to next device.
                 dev++;
 
             }               //while (EnumDisplayDevices(null, dev, ref display, EDD_GET_DEVICE_INTERFACE_NAME))
@@ -254,9 +407,10 @@ namespace Win32
         /// </summary>
         public static Rectangle GetAllMonitorBounds(List<MonitorInformation> monitors)
         {
+
             int x = 0, y = 0, width = 0, height = 0;
 
-            foreach(MonitorInformation mon in monitors)
+            foreach (MonitorInformation mon in monitors)
             {
                 if (mon.Bounds.X < x) x = mon.Bounds.X;
                 if (mon.Bounds.Y < y) y = mon.Bounds.Y;
@@ -264,8 +418,97 @@ namespace Win32
                 if (mon.Bounds.Y + mon.Bounds.Height > height) height = mon.Bounds.Y + mon.Bounds.Height;
             }
 
-            return new Rectangle(new Point(x,y), new Size(width, height));
-        }
+            return new Rectangle(new Point(x, y), new Size(width, height));
+
+        }               //public static Rectangle GetAllMonitorBounds(List<MonitorInformation> monitors)
+
+
+        /// <summary>
+        /// Helper function to get all Edids from Setup API.
+        /// Dictionary Key is the device path of the monitor in lower case.
+        /// Dictionary Value is the EDID byte array.
+        /// </summary>
+        private static Dictionary<string, byte[]> GetAllEdids()
+        {
+
+            Dictionary<string, byte[]> retEdids = new Dictionary<string, byte[]>();
+            Guid monitorGuid = new Guid(0xe6f07b5f, 0xee97, 0x4a90, 0xb0, 0x76, 0x33, 0xf5, 0x7b, 0xf4, 0xea, 0xa7);
+            string devicePath;
+            bool retValue1 = true;
+
+            // Retrieve all monitor devices.
+            IntPtr hMonitorDevices =
+                SetupDiGetClassDevs(ref monitorGuid, IntPtr.Zero, IntPtr.Zero, (uint)(DIGCF_PRESENT | DIGCF_DEVICEINTERFACE));
+            if (hMonitorDevices.ToInt64() == INVALID_HANDLE_VALUE) return retEdids;
+
+            for (uint i = 0; retValue1 == true; i++)
+            {
+                // Create a Device Interface Data structure.
+                SP_DEVICE_INTERFACE_DATA devIntData = new SP_DEVICE_INTERFACE_DATA();
+                devIntData.cbSize = (uint)Marshal.SizeOf(devIntData);
+
+                // Enumerate the devices.
+                retValue1 = SetupDiEnumDeviceInterfaces(hMonitorDevices, IntPtr.Zero, ref monitorGuid, i, ref devIntData);
+                if (retValue1 == false) break;
+
+                // Build a Device Info Data structure.
+                SP_DEVINFO_DATA devData = new SP_DEVINFO_DATA();
+                devData.cbSize = (uint)Marshal.SizeOf(devData);
+
+                // Build a Device Interface Detail Data structure.
+                SP_DEVICE_INTERFACE_DETAIL_DATA devIntDetail = new SP_DEVICE_INTERFACE_DETAIL_DATA();
+                devIntDetail.cbSize = (int)(4 + Marshal.SystemDefaultCharSize); // from pinvoke.net
+
+                // Get detailed information.
+                uint nRequiredSize = 0;
+                uint nBytes = BUFFER_SIZE;
+                if (SetupDiGetDeviceInterfaceDetail(hMonitorDevices, ref devIntData, ref devIntDetail, nBytes, ref nRequiredSize, ref devData))
+                {
+                    devicePath = devIntDetail.DevicePath.ToLower();
+                }
+                else
+                {
+                    continue;   // Move to next monitor device.
+                }
+
+                UIntPtr hDevRegKey = SetupDiOpenDevRegKey
+                    (hMonitorDevices, ref devData, DICS_FLAG_GLOBAL, 0, DIREG_DEV, KEY_READ);
+                if (hDevRegKey == null) continue;   // Move to next monitor device.
+
+                StringBuilder valueName = new StringBuilder(128);
+                uint valueNameLength = 128;
+                int edidDataSize = 1024;
+                byte[] edidData = new byte[edidDataSize];
+                IntPtr pEdidData = Marshal.AllocHGlobal(edidData.Length);
+                Marshal.Copy(edidData, 0, pEdidData, edidData.Length);
+
+                for (uint j = 0, retValue2 = ERROR_SUCCESS; retValue2 == ERROR_SUCCESS; j++)
+                {
+                    retValue2 = RegEnumValue
+                        (hDevRegKey, j, valueName, ref valueNameLength, IntPtr.Zero, IntPtr.Zero, pEdidData, ref edidDataSize);
+
+                    if (retValue2 != ERROR_SUCCESS || edidDataSize < 1) continue;
+
+                    if (valueName.ToString().Contains("EDID"))
+                    {
+                        // Save the Edid.
+                        byte[] returnEDID = new byte[edidDataSize];
+                        Marshal.Copy(pEdidData, returnEDID, 0, edidDataSize);
+
+                        retEdids.Add(devicePath, returnEDID);
+
+                    }
+
+                }
+
+                Marshal.FreeHGlobal(pEdidData);
+                RegCloseKey(hDevRegKey);
+
+            }               //for (i = 0; retValue1 == true; i++)
+
+            return retEdids;
+
+        }               //private static Dictionary<string, byte[]> GetAllEdids()
 
     }
 
